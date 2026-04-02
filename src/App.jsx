@@ -1,14 +1,15 @@
 import { useState, useEffect } from 'react';
 
 function App() {
-  // O Estado principal (Fonte da verdade) será o HSL
   const [h, setH] = useState(180);
   const [s, setS] = useState(100);
   const [l, setL] = useState(50);
 
-  // Estados derivados para os inputs de texto (permite digitação suave)
   const [rgbInput, setRgbInput] = useState({ r: 0, g: 255, b: 255 });
   const [hexInput, setHexInput] = useState('00FFFF');
+  
+  // O Estado das cores salvas está de volta
+  const [savedColors, setSavedColors] = useState([]);
 
   // --- FUNÇÕES DE CONVERSÃO MATEMÁTICA ---
   const hslToRgb = (h, s, l) => {
@@ -46,7 +47,6 @@ function App() {
   };
 
   // --- ATUALIZAÇÕES EM TEMPO REAL ---
-  // Sempre que HSL mudar pelos sliders, atualiza os textos de RGB e Hex
   useEffect(() => {
     const { r, g, b } = hslToRgb(h, s, l);
     setRgbInput({ r, g, b });
@@ -74,29 +74,66 @@ function App() {
     setH(hsl.h); setS(hsl.s); setL(hsl.l);
   };
 
+  // --- HANDLER DE INTERAÇÃO COM A RODA DE CORES ---
+  const handleWheelInteraction = (e) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    // Posição do mouse em relação ao centro do círculo
+    const x = e.clientX - rect.left - rect.width / 2;
+    const y = e.clientY - rect.top - rect.height / 2;
+
+    // Calcula o ângulo (Matiz/Hue)
+    let angle = Math.atan2(y, x) * (180 / Math.PI) + 90;
+    if (angle < 0) angle += 360;
+
+    // Calcula a distância do centro (Saturação)
+    const radius = rect.width / 2;
+    const distance = Math.min(Math.sqrt(x * x + y * y), radius);
+    const newS = Math.round((distance / radius) * 100);
+
+    setH(Math.round(angle));
+    setS(newS);
+  };
+
+  // --- HANDLER PARA SALVAR COR ---
+  const handleSaveColor = () => {
+    const newColor = { 
+      hex: `#${hexInput}`, 
+      rgb: `${rgbInput.r}, ${rgbInput.g}, ${rgbInput.b}`, 
+      hsl: `${h}°, ${s}%, ${l}%` 
+    };
+    setSavedColors([newColor, ...savedColors]);
+  };
+
   return (
-    <div style={{ backgroundColor: '#1e1e1e', color: '#fff', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Segoe UI, Tahoma, Geneva, Verdana, sans-serif' }}>
+    <div style={{ backgroundColor: '#1e1e1e', color: '#fff', minHeight: '100vh', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '40px', fontFamily: 'Segoe UI, Tahoma, Geneva, Verdana, sans-serif' }}>
       
-      <div style={{ backgroundColor: '#2d2d2d', padding: '20px', borderRadius: '8px', boxShadow: '0 10px 30px rgba(0,0,0,0.5)', display: 'flex', gap: '30px', flexWrap: 'wrap' }}>
+      <div style={{ backgroundColor: '#2d2d2d', padding: '25px', borderRadius: '8px', boxShadow: '0 10px 30px rgba(0,0,0,0.5)', display: 'flex', gap: '40px', flexWrap: 'wrap', maxWidth: '800px' }}>
         
-        {/* Lado Esquerdo: Representação Visual (Roda e Cores) */}
+        {/* Bloco 1: A Roda e o Mostruário */}
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '250px' }}>
-          <div style={{ width: '80px', height: '80px', backgroundColor: `#${hexInput}`, border: '2px solid #555', borderRadius: '4px', marginBottom: '20px' }}></div>
+          {/* Mostruário da Cor Atual */}
+          <div style={{ width: '100px', height: '100px', backgroundColor: `#${hexInput}`, border: '3px solid #555', borderRadius: '8px', marginBottom: '25px', boxShadow: '0 4px 8px rgba(0,0,0,0.3)' }}></div>
           
-          {/* Roda de Cores simulada com Conic Gradient */}
-          <div style={{
-            width: '200px', height: '200px', borderRadius: '50%', border: '2px solid #555', position: 'relative', cursor: 'pointer',
-            background: 'conic-gradient(red, yellow, lime, aqua, blue, magenta, red)'
-          }}>
-            {/* Ponto indicador da cor atual na roda */}
+          {/* Roda de Cores Interativa */}
+          <div 
+            onMouseDown={handleWheelInteraction}
+            onMouseMove={(e) => e.buttons === 1 && handleWheelInteraction(e)} // Só atualiza se o botão esquerdo do mouse estiver pressionado
+            style={{
+              width: '200px', height: '200px', borderRadius: '50%', border: '2px solid #555', position: 'relative', cursor: 'crosshair',
+              // Fundo radial para a saturação + conic gradient para a matiz
+              background: `radial-gradient(circle closest-side, hsl(0, 0%, ${l}%), transparent), conic-gradient(from 0deg, red, yellow, lime, aqua, blue, magenta, red)`
+            }}>
+            {/* Ponto indicador (Crosshair) */}
             <div style={{
-              width: '12px', height: '12px', border: '2px solid white', borderRadius: '50%', position: 'absolute',
-              top: '50%', left: '50%', transform: `translate(-50%, -50%) rotate(${h}deg) translateY(-90px)`, pointerEvents: 'none'
+              width: '14px', height: '14px', border: '2px solid white', borderRadius: '50%', position: 'absolute', pointerEvents: 'none', boxShadow: '0 0 4px rgba(0,0,0,0.8)',
+              // Usa trigonometria para colocar a bolinha no lugar exato baseado no estado atual
+              left: `calc(50% + ${Math.sin(h * Math.PI / 180) * (s / 100) * 100}px - 7px)`,
+              top: `calc(50% - ${Math.cos(h * Math.PI / 180) * (s / 100) * 100}px - 7px)`,
             }}></div>
           </div>
         </div>
 
-        {/* Lado Direito: Controles e Inputs Manuais */}
+        {/* Bloco 2: Controles Manuais */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', width: '220px' }}>
           
           {/* Sessão RGB */}
@@ -124,27 +161,45 @@ function App() {
             </div>
           </fieldset>
 
-          {/* Sessão HSL (Sliders e Inputs) */}
+          {/* Sessão HSL (Luminosidade afeta a roda) */}
           <fieldset style={{ border: '1px solid #555', padding: '10px', borderRadius: '5px' }}>
-            <legend style={{ fontSize: '12px', color: '#aaa' }}>HSL (Matiz, Sat, Luz)</legend>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '5px' }}>
-              <span>H:</span>
-              <input type="range" min="0" max="360" value={h} onChange={(e) => setH(Number(e.target.value))} style={{ flex: 1 }} />
-              <input type="number" min="0" max="360" value={h} onChange={(e) => setH(Number(e.target.value))} style={{ width: '45px', background: '#111', color: '#fff', border: '1px solid #444' }} />
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '5px' }}>
-              <span>S:</span>
-              <input type="range" min="0" max="100" value={s} onChange={(e) => setS(Number(e.target.value))} style={{ flex: 1 }} />
-              <input type="number" min="0" max="100" value={s} onChange={(e) => setS(Number(e.target.value))} style={{ width: '45px', background: '#111', color: '#fff', border: '1px solid #444' }} />
-            </div>
+            <legend style={{ fontSize: '12px', color: '#aaa' }}>Luminosidade (L)</legend>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <span>L:</span>
               <input type="range" min="0" max="100" value={l} onChange={(e) => setL(Number(e.target.value))} style={{ flex: 1 }} />
               <input type="number" min="0" max="100" value={l} onChange={(e) => setL(Number(e.target.value))} style={{ width: '45px', background: '#111', color: '#fff', border: '1px solid #444' }} />
             </div>
           </fieldset>
 
+          {/* Botão de Salvar restaurado */}
+          <button 
+            onClick={handleSaveColor} 
+            style={{ padding: '10px', backgroundColor: '#007acc', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold', marginTop: '5px' }}>
+            + Salvar Cor
+          </button>
+
         </div>
+
+        {/* Bloco 3: Lista de Cores Salvas */}
+        <div style={{ minWidth: '200px', borderLeft: '1px solid #444', paddingLeft: '30px' }}>
+          <h3 style={{ marginTop: 0, borderBottom: '1px solid #444', paddingBottom: '10px' }}>Cores Salvas</h3>
+          
+          {savedColors.length === 0 ? (
+            <p style={{ color: '#888', fontSize: '14px' }}>Nenhuma cor salva ainda.</p>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '380px', overflowY: 'auto', paddingRight: '10px' }}>
+              {savedColors.map((color, index) => (
+                <div key={index} style={{ display: 'flex', alignItems: 'center', gap: '10px', background: '#222', padding: '8px', borderRadius: '5px' }}>
+                  <div style={{ width: '30px', height: '30px', backgroundColor: color.hex, borderRadius: '4px', border: '1px solid #555' }}></div>
+                  <div style={{ fontSize: '12px', color: '#ccc' }}>
+                    <div style={{ fontWeight: 'bold', color: '#fff' }}>{color.hex}</div>
+                    <div>RGB: {color.rgb}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
       </div>
     </div>
   );
